@@ -1,15 +1,22 @@
 const btnSubmit = document.getElementById('submit');
-const btnList = document.getElementById('btnList');
-
 const inputName = document.getElementById('name');
 const inputAge = document.getElementById('age');
 const inputEmail = document.getElementById('email');
 
-const table = document.getElementById("tablePersonas");
-
+const btnList = document.getElementById('btnList');
 const db = new PouchDB('personas');
 
-btnSubmit.addEventListener('click', (event) =>{
+
+if('serviceWorker' in navigator){
+    navigator.serviceWorker.register('sw.js')
+    .then(function(registration){
+        console.log('Service Worker registrado con éxito:', registration);
+    })
+    .catch(err => console.log('Error al tratar de registrar el SW', err));
+}
+
+
+btnSubmit.addEventListener('click', (event) => {
     event.preventDefault();
 
     const persona = {
@@ -21,50 +28,60 @@ btnSubmit.addEventListener('click', (event) =>{
     };
 
     db.put(persona)
-    .then((response) => {
-        console.log(response);
-        console.log('Persona guardada con éxito');
-        getData();
-        inputName.value = '';
-        inputAge.value = '';
-        inputEmail.value = '';
-    }).catch(err => {
-        console.error('Error al guardar la persona', err);
-    });
-})
+        .then((response) => {
+            console.log(response);
+            console.log('Persona guardada con éxito');
+            inputName.value = '';
+            inputAge.value = '';
+            inputEmail.value = '';
+            updateList();
+        }).catch(err => {
+            console.error('Error al guardar la persona', err);
+        });
+});
 
-window.addEventListener("load", () => {
-    getData();
-})
+function updateList() {
+    const listadoDiv = document.querySelector('#listado');
+    listadoDiv.innerHTML = '';
 
-const getData = () => {
-    db.allDocs({include_docs: true})
-    .then((result) => {
-        console.log('Personas en la BD:');
-        console.log(result);
-        table.innerHTML = ``;
-        result.rows.map((row) => {
-            table.innerHTML += `
-                <tr key="${row.key}">
-                    <td>${row.doc.name}</td>
-                    <td>${row.doc.age}</td>
-                    <td>${row.doc.email}</td>
-                    <td><button type="button" onclick="deletePerson('${row.doc._id}', '${row.doc._rev}')">Eliminar</button></td>
-                </tr>
-            `;  
-        });        
-    }).catch(err => {
-        console.error('Error al obtener los datos: ', err);
+    db.allDocs({ include_docs: true }).then(result => {
+        if (result.rows.length === 0) {
+            listadoDiv.innerHTML = '<p class="text-center text-muted">No hay registros aún.</p>';
+            return;
+        }
+
+        result.rows.forEach(row => {
+            const persona = row.doc;
+
+            const card = document.createElement('div');
+            card.className = 'card mb-3 shadow-sm';
+            card.innerHTML = `
+                <div class="card-body">
+                <h5 class="card-title mb-2">${persona.name}</h5>
+                <p class="card-text mb-1"><strong>Edad:</strong> ${persona.age}</p>
+                <p class="card-text mb-0"><strong>Email:</strong> ${persona.email}</p>
+                <button class="btn btn-sm btn-outline-danger mt-3">Eliminar</button>
+                </div>
+            `;
+
+            const btn = card.querySelector('button');
+            btn.addEventListener('click', () => deleteUser(persona));
+
+            listadoDiv.appendChild(card);
+        });
+
     });
 }
 
-const deletePerson = (_id, _rev) => {
-    db.remove(_id, _rev)
-    .then((result) => {
-        console.log('Persona eliminada correctamente: ', result);
-        getData();
-    })
-    .catch((err) => {
-        console.error('Error al eliminar la persona: ', err);
-    });
+deleteUser = (persona) => {
+    db.remove(persona)
+        .then((result) => {
+            console.log('Persona eliminada', result);
+            updateList();
+        }
+        ).catch((err) => {
+            console.error('Error al eliminar la persona', err);
+        })
 };
+
+updateList();
